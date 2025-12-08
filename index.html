@@ -398,6 +398,15 @@
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
+ // 2. 设置模型路径为当前目录下的文件名
+            gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: "./gesture_recognizer.task", 
+                    delegate: "GPU"
+                },
+                runningMode: "VIDEO",
+                numHands: 1
+            });
 
             // 全屏逻辑
             document.getElementById('fullscreen-btn').addEventListener('click', () => {
