@@ -3,40 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AI 手势粒子交互系统</title>
+    <title>手势粒子交互</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; }
         
-        /* 摄像头预览 (右上角) */
+        /* 摄像头预览 */
         #video-container {
             position: absolute; top: 20px; right: 20px;
             width: 160px; height: 120px;
             border-radius: 10px; overflow: hidden;
             border: 2px solid rgba(255, 255, 255, 0.2);
             z-index: 10;
-            transform: scaleX(-1); /* 镜像翻转 */
+            transform: scaleX(-1);
             box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
-            pointer-events: none; /* 防止遮挡交互 */
+            pointer-events: none;
         }
-        /* 关键修复：确保视频覆盖且适应 */
         video { width: 100%; height: 100%; object-fit: cover; }
 
-        /* UI 控制面板容器 (左上角) */
-        #gui-container { position: absolute; top: 20px; left: 20px; z-index: 11; }
-
-        /* 全屏按钮 */
-        #fullscreen-btn {
-            position: absolute; bottom: 20px; right: 20px;
-            padding: 10px 20px;
-            background: rgba(0, 255, 255, 0.1);
-            border: 1px solid rgba(0, 255, 255, 0.5);
-            color: #00ffff; border-radius: 5px;
-            cursor: pointer; z-index: 11;
+        /* 状态指示器 */
+        #hud {
+            position: absolute; bottom: 30px; left: 0; width: 100%;
+            text-align: center; pointer-events: none; z-index: 15;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #00ffff;
+            border-radius: 20px;
+            color: #00ffff;
+            font-size: 14px;
             transition: all 0.3s;
         }
-        #fullscreen-btn:hover { background: rgba(0, 255, 255, 0.3); box-shadow: 0 0 15px #00ffff; }
+        .status-active { background: rgba(0, 255, 0, 0.2); border-color: #00ff00; color: #00ff00; }
 
-        /* 加载动画 */
+        /* 加载层 */
         #loader {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 20;
@@ -45,69 +46,81 @@
             transition: opacity 0.5s;
         }
         .spinner {
-            width: 50px; height: 50px;
-            border: 3px solid #333; border-top: 3px solid #00ffff;
+            width: 40px; height: 40px; border: 3px solid #333; border-top: 3px solid #00ffff;
             border-radius: 50%; animation: spin 1s linear infinite;
         }
-        .loading-text { margin-top: 20px; color: #00ffff; letter-spacing: 2px; text-align: center; padding: 0 20px;}
+        .loading-text { margin-top: 15px; color: #00ffff; font-size: 14px; text-align: center; }
+
+        #gui-container { position: absolute; top: 20px; left: 20px; z-index: 11; }
+        
+        #fullscreen-btn {
+            position: absolute; bottom: 20px; right: 20px;
+            padding: 8px 15px;
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            color: #00ffff; border-radius: 5px;
+            cursor: pointer; z-index: 11;
+        }
 
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
     
+    <!-- 1. 核心库全部换成国内 CDN (npm.elemecdn.com) -->
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-                "lil-gui": "https://unpkg.com/lil-gui@0.19.1/dist/lil-gui.esm.min.js"
+                "three": "https://npm.elemecdn.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://npm.elemecdn.com/three@0.160.0/examples/jsm/",
+                "lil-gui": "https://npm.elemecdn.com/lil-gui@0.19.1/dist/lil-gui.esm.min.js"
             }
         }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://npm.elemecdn.com/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://npm.elemecdn.com/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://npm.elemecdn.com/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
     <div id="loader">
         <div class="spinner"></div>
-        <div class="loading-text">正在初始化视觉神经网络...<br><span style="font-size:12px; opacity:0.7">(请允许使用摄像头)</span></div>
+        <div class="loading-text">正在从国内节点加载资源...<br>无需梯子，速度飞快</div>
     </div>
 
     <div id="video-container">
-        <!-- 关键修复：添加 playsinline 和 muted 属性以支持手机浏览器 -->
+        <!-- 保持 playsinline 兼容 iOS -->
         <video id="input-video" playsinline webkit-playsinline muted autoplay></video>
+    </div>
+
+    <div id="hud">
+        <div id="status-badge" class="status-badge">等待手势...</div>
     </div>
     
     <div id="gui-container"></div>
-    <button id="fullscreen-btn">⛶ 全屏模式</button>
+    <button id="fullscreen-btn">全屏</button>
 
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import GUI from 'lil-gui';
 
-        // --- 配置参数 ---
-        const PARTICLE_COUNT = 25000;
-        // 移动端优化：如果屏幕小，粒子少一点
-        const isMobile = window.innerWidth < 768;
-        const ACTUAL_COUNT = isMobile ? 15000 : PARTICLE_COUNT;
-        
-        const PARTICLE_SIZE = isMobile ? 0.12 : 0.08;
-        const MORPH_SPEED = 0.05; 
+        // --- 满血画质配置 (不阉割) ---
+        const PARTICLE_COUNT = 30000; // 满血粒子数
+        const PARTICLE_SIZE = 0.08;   // 细腻粒子
+        const MORPH_SPEED = 0.08;
 
         let scene, camera, renderer, particles, geometry;
-        let originalPositions = []; 
-        let targetPositions = [];   
-        let currentShape = 'heart';
+        let originalPositions = [], targetPositions = [];   
         let handExplosionFactor = 0; 
         
         const params = {
             shape: 'heart',
             color: '#00ffff',
             particleSize: PARTICLE_SIZE,
-            autoRotate: true
+            autoRotate: true,
+            sensitivity: 1.5 // 默认灵敏度
         };
+
+        const statusBadge = document.getElementById('status-badge');
 
         function initScene() {
             scene = new THREE.Scene();
@@ -118,7 +131,7 @@
             camera.position.z = 10;
             camera.position.y = 2;
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             document.body.appendChild(renderer.domElement);
@@ -131,76 +144,39 @@
 
         function getShapeData(type) {
             const data = [];
-            
             const randomSphere = (scale) => {
-                const u = Math.random();
-                const v = Math.random();
-                const theta = 2 * Math.PI * u;
-                const phi = Math.acos(2 * v - 1);
+                const u = Math.random(); const v = Math.random();
+                const theta = 2 * Math.PI * u; const phi = Math.acos(2 * v - 1);
                 const r = Math.cbrt(Math.random()) * scale;
-                return {
-                    x: r * Math.sin(phi) * Math.cos(theta),
-                    y: r * Math.sin(phi) * Math.sin(theta),
-                    z: r * Math.cos(phi)
-                };
+                return { x: r * Math.sin(phi) * Math.cos(theta), y: r * Math.sin(phi) * Math.sin(theta), z: r * Math.cos(phi) };
             };
 
-            for (let i = 0; i < ACTUAL_COUNT; i++) {
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
                 let x, y, z;
-
                 if (type === 'heart') {
                     const t = Math.random() * Math.PI * 2;
                     x = 16 * Math.pow(Math.sin(t), 3);
                     y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
                     z = (Math.random() - 0.5) * 8; 
                     x *= 0.2; y *= 0.2; z *= 0.2;
-                } 
-                else if (type === 'flower') {
-                    const theta = Math.random() * Math.PI * 2;
-                    const phi = Math.random() * Math.PI;
-                    const k = 4; 
-                    const r = 3 * Math.cos(k * theta) + 1; 
-                    x = r * Math.sin(phi) * Math.cos(theta);
-                    y = r * Math.cos(phi); 
-                    z = r * Math.sin(phi) * Math.sin(theta);
-                }
-                else if (type === 'saturn') {
-                    if (Math.random() > 0.4) {
-                        const angle = Math.random() * Math.PI * 2;
-                        const dist = 4 + Math.random() * 3;
-                        x = Math.cos(angle) * dist;
-                        z = Math.sin(angle) * dist;
-                        y = (Math.random() - 0.5) * 0.2;
-                    } else {
-                        const p = randomSphere(2.5);
-                        x = p.x; y = p.y; z = p.z;
-                    }
-                    const tilt = 0.4;
-                    const tempX = x;
-                    x = x * Math.cos(tilt) - y * Math.sin(tilt);
-                    y = tempX * Math.sin(tilt) + y * Math.cos(tilt);
-                }
-                else if (type === 'buddha') {
+                } else if (type === 'flower') {
+                    const theta = Math.random() * Math.PI * 2; const phi = Math.random() * Math.PI;
+                    const r = 3 * Math.cos(4 * theta) + 1; 
+                    x = r * Math.sin(phi) * Math.cos(theta); y = r * Math.cos(phi); z = r * Math.sin(phi) * Math.sin(theta);
+                } else if (type === 'saturn') {
+                     if (Math.random() > 0.4) {
+                        const angle = Math.random() * Math.PI * 2; const dist = 4 + Math.random() * 3;
+                        x = Math.cos(angle) * dist; z = Math.sin(angle) * dist; y = (Math.random() - 0.5) * 0.2;
+                    } else { const p = randomSphere(2.5); x = p.x; y = p.y; z = p.z; }
+                    const tilt = 0.4; const tx = x; x = x * Math.cos(tilt) - y * Math.sin(tilt); y = tx * Math.sin(tilt) + y * Math.cos(tilt);
+                } else if (type === 'buddha') {
                     const section = Math.random();
-                    if (section < 0.2) {
-                        const p = randomSphere(0.8);
-                        x = p.x; y = p.y + 2.5; z = p.z;
-                    } else if (section < 0.6) {
-                        const p = randomSphere(1.8);
-                        x = p.x * 1.2; y = p.y; z = p.z * 0.8;
-                    } else {
-                        const angle = Math.random() * Math.PI * 2;
-                        const rad = 1.5 + Math.random() * 2.0;
-                        x = Math.cos(angle) * rad;
-                        y = -1.5 + (Math.random() - 0.5) * 1.0;
-                        z = Math.sin(angle) * rad;
-                    }
+                    if (section < 0.2) { const p = randomSphere(0.8); x = p.x; y = p.y + 2.5; z = p.z; }
+                    else if (section < 0.6) { const p = randomSphere(1.8); x = p.x * 1.2; y = p.y; z = p.z * 0.8; }
+                    else { const a = Math.random() * Math.PI * 2; const r = 1.5 + Math.random() * 2.0; x = Math.cos(a) * r; y = -1.5; z = Math.sin(a) * r; }
+                } else { 
+                    const p = randomSphere(6); x = p.x; y = p.y; z = p.z;
                 }
-                else if (type === 'fireworks') {
-                    const p = randomSphere(6);
-                    x = p.x; y = p.y; z = p.z;
-                }
-
                 data.push(x, y, z);
             }
             return new Float32Array(data);
@@ -209,19 +185,13 @@
         function initParticles() {
             geometry = new THREE.BufferGeometry();
             targetPositions = getShapeData('heart');
-            originalPositions = new Float32Array(targetPositions); 
+            originalPositions = new Float32Array(targetPositions);
             const currentPos = new Float32Array(targetPositions);
             geometry.setAttribute('position', new THREE.BufferAttribute(currentPos, 3));
-
             const material = new THREE.PointsMaterial({
-                size: params.particleSize,
-                color: params.color,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                transparent: true,
-                opacity: 0.8
+                size: params.particleSize, color: params.color, blending: THREE.AdditiveBlending,
+                depthWrite: false, transparent: true, opacity: 0.8
             });
-
             particles = new THREE.Points(geometry, material);
             scene.add(particles);
         }
@@ -231,35 +201,25 @@
 
             particles.material.size = params.particleSize;
             particles.material.color.set(params.color);
-            scene.children[0].rotation.y += params.autoRotate ? 0.002 : 0;
+            if(params.autoRotate) scene.children[0].rotation.y += 0.002;
 
             const positions = particles.geometry.attributes.position.array;
 
-            for (let i = 0; i < ACTUAL_COUNT; i++) {
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const i3 = i * 3;
-                const tx = targetPositions[i3];
-                const ty = targetPositions[i3 + 1];
-                const tz = targetPositions[i3 + 2];
-
+                const tx = targetPositions[i3]; const ty = targetPositions[i3 + 1]; const tz = targetPositions[i3 + 2];
                 let ex = 0, ey = 0, ez = 0;
-                if (handExplosionFactor > 0.01) {
-                    const dist = Math.sqrt(tx*tx + ty*ty + tz*tz) || 1;
-                    const dirX = tx / dist; 
-                    const dirY = ty / dist; 
-                    const dirZ = tz / dist;
+                
+                if (handExplosionFactor > 0.05) {
+                    const dist = Math.sqrt(tx*tx + ty*ty + tz*tz) || 0.01;
                     const force = handExplosionFactor * 8.0; 
-                    const noise = Math.random() * 2.0;
-                    
-                    ex = dirX * force * noise;
-                    ey = dirY * force * noise;
-                    ez = dirZ * force * noise;
+                    ex = (tx / dist) * force; ey = (ty / dist) * force; ez = (tz / dist) * force;
                 }
 
                 positions[i3]     += (tx + ex - positions[i3]) * MORPH_SPEED;
                 positions[i3 + 1] += (ty + ey - positions[i3 + 1]) * MORPH_SPEED;
                 positions[i3 + 2] += (tz + ez - positions[i3 + 2]) * MORPH_SPEED;
             }
-
             particles.geometry.attributes.position.needsUpdate = true;
             renderer.render(scene, camera);
         }
@@ -267,13 +227,16 @@
         function initMediaPipe() {
             const videoElement = document.getElementById('input-video');
             
-            const hands = new Hands({locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-            }});
+            // 2. 核心修改：强制让 AI 模型文件 (WASM/Data) 从国内 CDN 下载
+            const hands = new Hands({
+                locateFile: (file) => {
+                    return `https://npm.elemecdn.com/@mediapipe/hands/${file}`;
+                }
+            });
             
             hands.setOptions({
                 maxNumHands: 1,
-                modelComplexity: 1, // 0: 极速, 1: 均衡
+                modelComplexity: 1, // 满血模型精度
                 minDetectionConfidence: 0.5,
                 minTrackingConfidence: 0.5
             });
@@ -281,103 +244,68 @@
             hands.onResults(onHandsResults);
 
             const cameraUtils = new Camera(videoElement, {
-                onFrame: async () => {
-                    await hands.send({image: videoElement});
-                },
-                width: 320,
-                height: 240
+                onFrame: async () => { await hands.send({image: videoElement}); },
+                // 3. 满血分辨率：1280x720 (如果手机支持)
+                width: 1280, 
+                height: 720
             });
             
-            // 错误处理
-            cameraUtils.start()
-                .then(() => {
-                    const loader = document.getElementById('loader');
-                    loader.style.opacity = 0;
-                    setTimeout(() => loader.remove(), 500);
-                })
-                .catch(err => {
-                    console.error("Camera failed:", err);
-                    document.querySelector('.loading-text').innerText = "摄像头启动失败，请检查权限";
-                });
+            cameraUtils.start().then(() => {
+                document.getElementById('loader').style.opacity = 0;
+                setTimeout(() => document.getElementById('loader').remove(), 500);
+            }).catch(e => {
+                alert("摄像头启动失败，请检查权限");
+            });
         }
 
         function onHandsResults(results) {
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                const landmarks = results.multiHandLandmarks[0];
-                const thumbTip = landmarks[4];
-                const pinkyTip = landmarks[20];
-                const wrist = landmarks[0];
+                // UI 反馈
+                statusBadge.innerText = "已捕获手势 ✅";
+                statusBadge.classList.add('status-active');
 
-                const distance = Math.sqrt(
-                    Math.pow(thumbTip.x - pinkyTip.x, 2) + 
-                    Math.pow(thumbTip.y - pinkyTip.y, 2)
-                );
-                const refDist = Math.sqrt(
-                    Math.pow(wrist.x - landmarks[9].x, 2) + 
-                    Math.pow(wrist.y - landmarks[9].y, 2)
-                );
-
-                let openFactor = distance / refDist;
-                let explosion = (openFactor - 0.5) / 0.8; 
-                explosion = Math.max(0, Math.min(1, explosion));
-
-                handExplosionFactor += (explosion - handExplosionFactor) * 0.1;
+                const lm = results.multiHandLandmarks[0];
+                const d_open = Math.hypot(lm[4].x - lm[20].x, lm[4].y - lm[20].y);
+                const d_ref = Math.hypot(lm[0].x - lm[9].x, lm[0].y - lm[9].y);
+                
+                // 灵敏度控制
+                let val = (d_open / d_ref - 0.5) * params.sensitivity; 
+                handExplosionFactor += (Math.max(0, Math.min(1, val)) - handExplosionFactor) * 0.1;
 
             } else {
-                handExplosionFactor += (0 - handExplosionFactor) * 0.05;
+                statusBadge.innerText = "请放入手掌...";
+                statusBadge.classList.remove('status-active');
+                handExplosionFactor += (0 - handExplosionFactor) * 0.1;
             }
         }
 
         function initUI() {
             const gui = new GUI({ container: document.getElementById('gui-container') });
-            gui.title('粒子控制台');
-
-            // 移动端默认收起 UI
             if(window.innerWidth < 600) gui.close();
 
-            const shapes = {
-                '爱心 (Heart)': 'heart',
-                '鲜花 (Flower)': 'flower',
-                '土星 (Saturn)': 'saturn',
-                '禅意 (Buddha)': 'buddha',
-                '烟花 (Fireworks)': 'fireworks'
-            };
-
-            gui.add({ shape: 'heart' }, 'shape', shapes).name('模型选择').onChange(val => {
-                targetPositions = getShapeData(val);
-                currentShape = val;
-            });
-
-            gui.addColor(params, 'color').name('粒子颜色');
-            gui.add(params, 'particleSize', 0.01, 0.3).name('粒子大小');
-            gui.add(params, 'autoRotate').name('自动旋转');
-
+            const shapes = { '❤️ 爱心': 'heart', '🌸 鲜花': 'flower', '🪐 土星': 'saturn', '🧘 禅意': 'buddha', '🎆 烟花': 'fireworks' };
+            
+            gui.add({ shape: 'heart' }, 'shape', shapes).name('形状').onChange(val => targetPositions = getShapeData(val));
+            gui.addColor(params, 'color').name('颜色');
+            gui.add(params, 'sensitivity', 0.5, 3.0).name('手势灵敏度');
+            
             window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
 
-            // ⚠️ 这里删除了你之前的 gestureRecognizer 错误代码块
-
             document.getElementById('fullscreen-btn').addEventListener('click', () => {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(err => {
-                         console.log("Full screen denied");
-                    });
-                } else {
-                    document.exitFullscreen();
-                }
+                if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+                else document.exitFullscreen();
             });
         }
 
-        // --- 启动程序 ---
         initScene();
         initParticles();
         initUI();
-        initMediaPipe(); // 这里会异步启动摄像头
+        initMediaPipe();
         animate();
-
     </script>
 </body>
 </html>
